@@ -1,8 +1,8 @@
-name: Update Jira Status on PR Merge
+name: Update Jira Status and Notify Slack
 
 on:
   pull_request:
-    types: [closed]  # chỉ khi PR được merge hoặc đóng
+    types: [closed]
     branches:
       - main
 
@@ -20,6 +20,7 @@ jobs:
           echo "ISSUE_KEY=$ISSUE_KEY" >> $GITHUB_OUTPUT
 
       - name: Transition Jira issue to Done
+        id: jira
         run: |
           curl -X POST \
             -u "${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}" \
@@ -30,3 +31,9 @@ jobs:
                 "id": "31"
               }
             }'
+
+      - name: Notify Slack
+        run: |
+          curl -X POST -H 'Content-type: application/json' --data '{
+            "text": "✅ *Jira Issue* `${{ steps.extract.outputs.ISSUE_KEY }}` đã được chuyển sang trạng thái *Done* sau khi merge PR: `${{ github.event.pull_request.title }}`"
+          }' ${{ secrets.SLACK_WEBHOOK }}
