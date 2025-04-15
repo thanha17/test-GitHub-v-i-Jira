@@ -1,23 +1,32 @@
-name: CI on Pull Request
+name: Update Jira Status on PR Merge
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [closed]  # chỉ khi PR được merge hoặc đóng
+    branches:
+      - main
 
 jobs:
-  build:
+  update-jira:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Extract Jira Issue Key from PR title
+        id: extract
+        run: |
+          echo "PR title: ${{ github.event.pull_request.title }}"
+          ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Z]+-[0-9]+')
+          echo "ISSUE_KEY=$ISSUE_KEY" >> $GITHUB_OUTPUT
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '16'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run tests
-        run: npm test
+      - name: Transition Jira issue to Done
+        run: |
+          curl -X POST \
+            -u "${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --url "${{ secrets.JIRA_BASE_URL }}/rest/api/3/issue/${{ steps.extract.outputs.ISSUE_KEY }}/transitions" \
+            -d '{
+              "transition": {
+                "id": "31"
+              }
+            }'
